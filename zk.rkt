@@ -16,9 +16,21 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 |#
 #lang typed/racket
-(struct Var ([v : Positive-Integer]))
+(module S typed/racket
+  (provide (rename-out [my-struct struct]))
+  (define-syntax my-struct
+    (syntax-rules ()
+      [(_ x ...) (struct x ... #:transparent)])))
+(require 'S)
+
+(define-type Count Positive-Integer)
+(: count-init Count)
+(define count-init 1)
+(: count-next (-> Count Count))
+(define (count-next x) (+ x 1))
+(struct Var ([v : Count]))
 (struct State ([=/=s : =/=s]
-               [count : Positive-Integer]
+               [count : Count]
                [goal-applys : (Listof GoalApplyProcedure)]
                [q : Any]))
 (struct GoalApplyProcedure ([f : (-> Any * Goal)] [xs : (Listof Any)]))
@@ -51,5 +63,16 @@
   (syntax-rules ()
     [(_ (f arg ...) body ...) (define (f arg ...) (all body ...))]))
 
-(: goal->stream (-> Goal (values (Stream Any) =/=s)))
-(define (goal->stream g) (goal->stream g))
+(: goal->stream (-> Goal (Stream (Pairof Any =/=s))))
+(define (goal->stream g) (goal->stream g)) ; WIP
+(: step (-> State (Pairof (Listof (Pairof Any =/=s)) State)))
+(define (step s) (step s)) ; WIP
+(: run-goal (-> Count Goal (Listof (List Count (Listof Goal==) (Listof Goal=/=) (Listof GoalApplyProcedure)))))
+(define (run-goal c g)
+  (match g
+    [(GoalFresh f) (run-goal (count-next c) (f (Var c)))]
+    [(and g (Goal== _ _)) (list (list c (list g) (list) (list)))]
+    [(and g (Goal=/= _ _)) (list (list c (list) (list g) (list)))]
+    [(and g (GoalApplyProcedure _ _)) (list (list c (list) (list) (list g)))]
+    [(GoalDisj x y) (run-goal c g)] ; WIP
+    [(GoalConj x y) (run-goal c g)]))
