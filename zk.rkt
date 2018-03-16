@@ -17,7 +17,7 @@
 |#
 #lang typed/racket
 (struct Var ([v : Positive-Integer]))
-(struct State ([=/=s : (Listof (Listof (Pairof Var Any)))]
+(struct State ([=/=s : =/=s]
                [count : Positive-Integer]
                [goal-applys : (Listof GoalApplyProcedure)]
                [q : Any]))
@@ -29,3 +29,27 @@
 (struct GoalFresh ([f : (-> Var Goal)]))
 (struct GoalDisj ([x : Goal] [y : Goal]))
 (struct GoalConj ([x : Goal] [y : Goal]))
+(define-type (Stream A) (U Null (Promise (Stream A)) (Pairof A (Stream A))))
+(define-type =/=s (Listof (Listof (Pairof Var Any))))
+
+(define-syntax goal
+  (syntax-rules (== =/= conde all)
+    [(_ (all x ...)) (all x ...)]
+    [(_ (conde x ...)) (conde x ...)]
+    [(_ (== x y)) (Goal== x y)]
+    [(_ (=/= x y)) (Goal=/= x y)]
+    [(_ (f x ...)) (GoalApplyProcedure f (list x ...))]))
+(define-syntax all
+  (syntax-rules ()
+    [(_ x) (goal x)]
+    [(_ x0 x ...) (GoalConj (goal x0) (all x ...))]))
+(define-syntax conde
+  (syntax-rules ()
+    [(_ [x ...]) (all x ...)]
+    [(_ [x ...] xs ...) (GoalDisj (all x ...) (conde xs ...))]))
+(define-syntax define-relation
+  (syntax-rules ()
+    [(_ (f arg ...) body ...) (define (f arg ...) (all body ...))]))
+
+(: goal->stream (-> Goal (values (Stream Any) =/=s)))
+(define (goal->stream g) (goal->stream g))
