@@ -23,6 +23,9 @@
       [(_ x ...) (struct x ... #:transparent)])))
 (require 'S)
 
+; (: list-bind (All (A B) (Listof A) (-> A (Listof B)) -> (Listof B)))
+; (define (list-bind xs f) (apply append (map f xs)))
+
 (define-type Count Positive-Integer)
 (: count-init Count)
 (define count-init 1)
@@ -67,12 +70,35 @@
 (define (goal->stream g) (goal->stream g)) ; WIP
 (: step (-> State (Pairof (Listof (Pairof Any =/=s)) State)))
 (define (step s) (step s)) ; WIP
+
 (: run-goal (-> Count Goal (Listof (List Count (Listof Goal==) (Listof Goal=/=) (Listof GoalApplyProcedure)))))
 (define (run-goal c g)
   (match g
     [(GoalFresh f) (run-goal (count-next c) (f (Var c)))]
-    [(and g (Goal== _ _)) (list (list c (list g) (list) (list)))]
-    [(and g (Goal=/= _ _)) (list (list c (list) (list g) (list)))]
-    [(and g (GoalApplyProcedure _ _)) (list (list c (list) (list) (list g)))]
+    [(and g (Goal== _ _)) (list (list c (list g) '() '()))]
+    [(and g (Goal=/= _ _)) (list (list c '() (list g) '()))]
+    [(and g (GoalApplyProcedure _ _)) (list (list c '() '() (list g)))]
     [(GoalDisj x y) (run-goal c g)] ; WIP
     [(GoalConj x y) (run-goal c g)]))
+; TypeRacket的问题 BEGIN
+(: %run-goals%mat% (All (A) (-> Count (Listof Goal==) (Listof Goal=/=) (Listof GoalApplyProcedure) A) ->
+                        (-> (List Count (Listof Goal==) (Listof Goal=/=) (Listof GoalApplyProcedure)) A)))
+(define (%run-goals%mat% f)
+  (λ (x) (apply f x)))
+(: %run-goals%bind% (All (A) (Listof (List Count (Listof Goal==) (Listof Goal=/=) (Listof GoalApplyProcedure)))
+                        (-> Count (Listof Goal==) (Listof Goal=/=) (Listof GoalApplyProcedure) (Listof A))
+                        -> (Listof A)))
+(define (%run-goals%bind% xs f) (apply append (map (%run-goals%mat% f) xs)))
+(define-syntax-rule (%run-goals%B xs (c ==s =/=s apps) v)
+  (%run-goals%bind% xs (λ ([c : Count] [==s : (Listof Goal==)] [=/=s : (Listof Goal=/=)] [apps : (Listof GoalApplyProcedure)]) v)))
+(: run-goals (-> Count (Listof Goal) (Listof (List Count (Listof Goal==) (Listof Goal=/=) (Listof GoalApplyProcedure)))))
+(define (run-goals c gs)
+  (if (null? gs)
+      (list (list c '() '() '()))
+      (let ([g (car gs)] [gs (cdr gs)])
+        (%run-goals%B (run-goal c g)
+                      (c ==s1 =/=s1 apps1)
+                      (%run-goals%B (run-goals c gs)
+                                    (c ==s2 =/=s2 apps2)
+                                    (list (list c (append ==s1 ==s2) (append =/=s1 =/=s2) (append apps1 apps2))))))))
+; END
