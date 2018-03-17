@@ -32,6 +32,10 @@
 (: count-next (-> Count Count))
 (define (count-next x) (+ x 1))
 (struct Var ([v : Count]))
+(: var=? (-> Var Var Boolean))
+(define (var=? x y)
+  (match* (x y)
+    [((Var x) (Var y)) (= x y)]))
 (struct State ([=/=s : =/=s]
                [count : Count]
                [goal-applys : (Listof GoalApplyProcedure)]
@@ -49,24 +53,37 @@
 
 (define-type Value (U Var Symbol String Char Number Null (Pairof Value Value) (Promise Value)))
 
-(define-syntax goal
-  (syntax-rules (== =/= conde all)
-    [(_ (all x ...)) (all x ...)]
-    [(_ (conde x ...)) (conde x ...)]
-    [(_ (== x y)) (Goal== x y)]
-    [(_ (=/= x y)) (Goal=/= x y)]
-    [(_ (f x ...)) (GoalApplyProcedure f (list x ...))]))
+(define == Goal==)
+(define =/= Goal=/=)
+(define succeed (== 'X 'X))
+(define fail (== 'X 'Y))
+(define conj GoalConj)
+(define disj GoalDisj)
+(define call/fresh GoalFresh)
+(define-syntax conj+
+  (syntax-rules ()
+    [(_ g) g]
+    [(_ g0 g ...) (conj g0 (conj+ g ...))]))
+(define-syntax disj+
+  (syntax-rules ()
+    [(_ g) g]
+    [(_ g0 g ...) (disj g0 (disj+ g ...))]))
 (define-syntax all
   (syntax-rules ()
-    [(_ x) (goal x)]
-    [(_ x0 x ...) (GoalConj (goal x0) (all x ...))]))
+    [(_ g0 g ...) (conj+ g0 g ...)]))
 (define-syntax conde
   (syntax-rules ()
-    [(_ [x ...]) (all x ...)]
-    [(_ [x ...] xs ...) (GoalDisj (all x ...) (conde xs ...))]))
+    [(_ (g0 g ...) ...) (disj+ (conj+ g0 g ...) ...)]))
 (define-syntax define-relation
   (syntax-rules ()
-    [(_ (f arg ...) body ...) (define (f arg ...) (all body ...))]))
+    [(_ (f arg ...) body ...)
+     (define f
+       (let ([T (λ (arg ...) (all body ...))])
+         (λ (arg ...) (GoalApplyProcedure T (list arg ...)))))]))
+(define-syntax fresh
+  (syntax-rules ()
+    [(_ () g0 g ...) (conj+ g0 g ...)]
+    [(_ (x0 x ...) g0 g ...) (call/fresh (λ (x0) (fresh (x ...) g0 g ...)))]))
 
 (: goal->stream (-> Goal (Stream (Pairof Any =/=s))))
 (define (goal->stream g) (goal->stream g)) ; WIP
@@ -121,6 +138,7 @@
       (cons c history)
       (let ([history (cons (cons x y) history)])
         (match* ((hash-ref c x (λ () x)) (hash-ref c y (λ () y)))
+          [((and x (Var _)) (and y (Var _))) (and (var=? x y) (cons c history))]
           [((and x (Var _)) y) (cons (hash-set c x y) history)]
           [(x (and y (Var _))) (cons (hash-set c y x) history)]
           [((cons xa xd) (cons ya yd))
@@ -130,4 +148,3 @@
           [((? promise? x) y) (unify0 history c (force x) y)] ; BUG? (define _ (delay _))
           [(x (? promise? y)) (unify0 history c x (force y))] ; BUG? (define _ (delay _))
           [(x y) (and (equal? x y) (cons c history))]))))
-    
