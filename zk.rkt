@@ -39,17 +39,17 @@
 (struct State ([=/=s : =/=s]
                [count : Count]
                [goal-applys : (Listof GoalApplyProcedure)]
-               [q : Any]))
-(struct GoalApplyProcedure ([f : (-> Any * Goal)] [xs : (Listof Any)]))
-(struct Goal== ([x : Any] [y : Any]))
-(struct Goal=/= ([x : Any] [y : Any]))
+               [q : Value]))
+(struct GoalApplyProcedure ([f : (-> Value * Goal)] [xs : (Listof Value)]))
+(struct Goal== ([x : Value] [y : Value]))
+(struct Goal=/= ([x : Value] [y : Value]))
 (define-type GoalApply (U GoalApplyProcedure Goal== Goal=/=))
 (define-type Goal (U GoalApply GoalFresh GoalDisj GoalConj))
 (struct GoalFresh ([f : (-> Var Goal)]))
 (struct GoalDisj ([x : Goal] [y : Goal]))
 (struct GoalConj ([x : Goal] [y : Goal]))
 (define-type (Stream A) (U Null (Promise (Stream A)) (Pairof A (Stream A))))
-(define-type =/=s (Listof (Listof (Pairof Var Any))))
+(define-type =/=s (Listof (Listof (Pairof Var Value))))
 
 (define-type Value (U Var Symbol String Char Number Null (Pairof Value Value) (Promise Value)))
 
@@ -85,9 +85,9 @@
     [(_ () g0 g ...) (conj+ g0 g ...)]
     [(_ (x0 x ...) g0 g ...) (call/fresh (λ (x0) (fresh (x ...) g0 g ...)))]))
 
-(: goal->stream (-> Goal (Stream (Pairof Any =/=s))))
+(: goal->stream (-> Goal (Stream (Pairof Value =/=s))))
 (define (goal->stream g) (goal->stream g)) ; WIP
-(: step (-> State (Pairof (Listof (Pairof Any =/=s)) State)))
+(: step (-> State (Pairof (Listof (Pairof Value =/=s)) State)))
 (define (step s) (step s)) ; WIP
 
 ; TypeRacket的问题 BEGIN
@@ -148,3 +148,23 @@
           [((? promise? x) y) (unify0 history c (force x) y)] ; BUG? (define _ (delay _))
           [(x (? promise? y)) (unify0 history c x (force y))] ; BUG? (define _ (delay _))
           [(x y) (and (equal? x y) (cons c history))]))))
+
+(: beta0 (-> (Immutable-HashTable Value (Promise Value)) (Immutable-HashTable Var Value) Value
+             (Pairof (Immutable-HashTable Value (Promise Value)) Value)))
+(define (beta0 betaed c x)
+  (if (hash-has-key? betaed x)
+      (cons betaed (hash-ref betaed x))
+      (letrec ([betaed2 : (Immutable-HashTable Value (Promise Value))
+                        (hash-set betaed x (delay (cdr x2)))]
+               [x2 : (Pairof (Immutable-HashTable Value (Promise Value)) Value)
+                   (match x
+                     [(cons a d)
+                      (match (beta0 betaed2 c a)
+                        [(cons betaed a)
+                         (match (beta0 betaed c d)
+                           [(cons betaed d)
+                            (cons betaed (cons a d))])])]
+                     [(and x (Var _)) (cons betaed2 (hash-ref c x (λ () x)))]
+                     [(? promise? x) (beta0 betaed2 c (force x))]
+                     [x (cons betaed2 x)])])
+        x2)))
