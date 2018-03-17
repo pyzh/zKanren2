@@ -116,20 +116,20 @@
   (%run-goals%bind% xs (λ ([c : Count] [==s : (Listof Goal==)] [=/=s : (Listof Goal=/=)] [apps : (Listof GoalApplyProcedure)]) v)))
 ; END
 (define fold foldl) ; or foldr
-(: run-goals (-> Count (Listof Goal) (Listof (List Count (Listof Goal==) (Listof Goal=/=) (Listof GoalApplyProcedure)))))
-(define (run-goals c gs)
+(: run-goal* (-> Count (Listof Goal) (Listof (List Count (Listof Goal==) (Listof Goal=/=) (Listof GoalApplyProcedure)))))
+(define (run-goal* c gs)
   (if (null? gs)
       (list (list c '() '() '()))
       (run-goal c (fold GoalConj (car gs) (cdr gs)))))
-(: run-goal-applys (-> Count (Listof GoalApplyProcedure) (Listof (List Count (Listof Goal==) (Listof Goal=/=) (Listof GoalApplyProcedure)))))
-(define (run-goal-applys c gs)
-  (run-goals c (map (match-lambda [(GoalApplyProcedure f xs) (apply f xs)]) gs)))
+(: run-goal-apply* (-> Count (Listof GoalApplyProcedure) (Listof (List Count (Listof Goal==) (Listof Goal=/=) (Listof GoalApplyProcedure)))))
+(define (run-goal-apply* c gs)
+  (run-goal* c (map (match-lambda [(GoalApplyProcedure f xs) (apply f xs)]) gs)))
 
 (define-type ==s (Immutable-HashTable Var Value))
 (: unify0 (-> (Listof (Pairof Value Value)) ==s Value Value
               (U False (Pairof ==s (Listof (Pairof Value Value))))))
-(: %unify%history%mem? (-> (Listof (Pairof Value Value)) Value Value Boolean))
-(define (%unify%history%mem? set x y)
+(: %unify0%history%mem? (-> (Listof (Pairof Value Value)) Value Value Boolean))
+(define (%unify0%history%mem? set x y)
   (and (pair? set)
        (let ([a (car set)] [d (cdr set)])
          (let ([v1 (car a)] [v2 (cdr a)])
@@ -138,7 +138,7 @@
              [(eq? v1 y) (eq? v2 x)]
              [else #f])))))
 (define (unify0 history c x y)
-  (if (%unify%history%mem? history x y)
+  (if (%unify0%history%mem? history x y)
       (cons c history)
       (let ([history (cons (cons x y) history)])
         (match* ((hash-ref c x (λ () x)) (hash-ref c y (λ () y)))
