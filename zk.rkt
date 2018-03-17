@@ -119,7 +119,15 @@
 (define (unify0 history c x y)
   (if (%unify%history%mem? history x y)
       (cons c history)
-      (match* ((hash-ref c x (λ () x)) (hash-ref c y (λ () y)))
-        [((and x (Var _)) y) (cons (hash-set c x y) history)]
-        [(x y) (and (equal? x y) (cons c history))])))
+      (let ([history (cons (cons x y) history)])
+        (match* ((hash-ref c x (λ () x)) (hash-ref c y (λ () y)))
+          [((and x (Var _)) y) (cons (hash-set c x y) history)]
+          [(x (and y (Var _))) (cons (hash-set c y x) history)]
+          [((cons xa xd) (cons ya yd))
+           (let ([t (unify0 history c xa xd)])
+             (and t (let ([c (car t)] [history (cdr t)])
+                      (unify0 history c xd yd))))]
+          [((? promise? x) y) (unify0 history c (force x) y)] ; BUG? (define _ (delay _))
+          [(x (? promise? y)) (unify0 history c x (force y))] ; BUG? (define _ (delay _))
+          [(x y) (and (equal? x y) (cons c history))]))))
     
