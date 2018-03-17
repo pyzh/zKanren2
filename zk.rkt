@@ -121,6 +121,9 @@
   (if (null? gs)
       (list (list c '() '() '()))
       (run-goal c (fold GoalConj (car gs) (cdr gs)))))
+(: run-goal-applys (-> Count (Listof GoalApplyProcedure) (Listof (List Count (Listof Goal==) (Listof Goal=/=) (Listof GoalApplyProcedure)))))
+(define (run-goal-applys c gs)
+  (run-goals c (map (match-lambda [(GoalApplyProcedure f xs) (apply f xs)]) gs)))
 
 (: unify0 (-> (Listof (Pairof Value Value)) (Immutable-HashTable Var Value) Value Value
               (U False (Pairof (Immutable-HashTable Var Value) (Listof (Pairof Value Value))))))
