@@ -159,14 +159,15 @@
                    (map (ann cdr (-> (Pairof Value Value) Value)) xs))])
     (and r (car r))))
 
-(: beta0 (-> (Immutable-HashTable Value (Promise Value)) (Immutable-HashTable Var Value) Value
-             (Pairof (Immutable-HashTable Value (Promise Value)) Value)))
+(define-type BetaMemory (Immutable-HashTable Value Value))
+(: beta0 (-> BetaMemory ==s Value
+             (Pairof BetaMemory Value)))
 (define (beta0 betaed c x)
   (if (hash-has-key? betaed x)
       (cons betaed (hash-ref betaed x))
-      (letrec ([betaed2 : (Immutable-HashTable Value (Promise Value))
+      (letrec ([betaed2 : BetaMemory
                         (hash-set betaed x (delay (cdr x2)))]
-               [x2 : (Pairof (Immutable-HashTable Value (Promise Value)) Value)
+               [x2 : (Pairof BetaMemory Value)
                    (match x
                      [(cons a d)
                       (match (beta0 betaed2 c a)
@@ -178,7 +179,13 @@
                      [(? promise? x) (beta0 betaed2 c (force x))]
                      [x (cons betaed2 x)])])
         x2)))
-(define-type BetaMemory (Immutable-HashTable Value Value))
-;(: beta (-> BetaMemory Value (Pairof BetaMemory Value)))
+(: beta (-> BetaMemory ==s Value (Pairof BetaMemory Value)))
+(define (beta mem c x)
+  (match (beta0 mem c x)
+    [(cons mem x) (cons (make-immutable-hash
+                         (map (ann (λ (x) (if (promise? (cdr x)) (cons (car x) (force (cdr x))) x))
+                                   (-> (Pairof Value Value) (Pairof Value Value)))
+                             (hash->list mem)))
+                        x)]))
 
 ;(: beta-goal-apply (-> GoalApplyProcedure
