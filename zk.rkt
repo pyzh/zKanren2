@@ -48,8 +48,6 @@
 (define-type =/=s (Listof (Listof (Pairof Var Any))))
 
 (define-type Value (U Var Symbol String Char Number Null (Pairof Value Value) (Promise Value)))
-(: value-equal? (-> Value Value Boolean))
-(define value-equal? equal?) ; BUG
 
 (define-syntax goal
   (syntax-rules (== =/= conde all)
@@ -108,14 +106,20 @@
       (run-goal c (fold GoalConj (car gs) (cdr gs)))))
 
 (: unify0 (-> (Listof (Pairof Value Value)) (Immutable-HashTable Var Value) Value Value
-             (U False (List (Listof (Pairof Value Value)) (Immutable-HashTable Var Value)))))
+              (U False (Pairof (Immutable-HashTable Var Value) (Listof (Pairof Value Value))))))
 (: %unify%history%mem? (-> (Listof (Pairof Value Value)) Value Value Boolean))
 (define (%unify%history%mem? set x y)
   (and (pair? set)
        (let ([a (car set)] [d (cdr set)])
          (let ([v1 (car a)] [v2 (cdr a)])
-         (cond
-           [(value-equal? v1 x) (value-equal? v2 y)]
-           [(value-equal? v1 y) (value-equal? v2 x)]
-           [else #f])))))
-(define (unify0 history v x y) (unify0 history v x y))
+           (cond
+             [(eq? v1 x) (eq? v2 y)]
+             [(eq? v1 y) (eq? v2 x)]
+             [else #f])))))
+(define (unify0 history c x y)
+  (if (%unify%history%mem? history x y)
+      (cons c history)
+      (match* ((hash-ref c x (λ () x)) (hash-ref c y (λ () y)))
+        [((and x (Var _)) y) (cons (hash-set c x y) history)]
+        [(x y) (and (equal? x y) (cons c history))])))
+    
