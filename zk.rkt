@@ -155,8 +155,8 @@
 (: unify* (-> (Listof (Pairof Value Value)) (U False ==s)))
 (define (unify* xs)
   (let ([r (unify0 '() (hash)
-                   (ann (map (ann car (-> (Pairof Value Value) Value)) xs) (Listof Value))
-                   (ann (map (ann cdr (-> (Pairof Value Value) Value)) xs) (Listof Value)))])
+                   (map (ann car (-> (Pairof Value Value) Value)) xs)
+                   (map (ann cdr (-> (Pairof Value Value) Value)) xs))])
     (and r (car r))))
 
 (: beta0 (-> (Immutable-HashTable Value (Promise Value)) (Immutable-HashTable Var Value) Value
