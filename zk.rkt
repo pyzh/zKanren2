@@ -125,8 +125,9 @@
 (define (run-goal-applys c gs)
   (run-goals c (map (match-lambda [(GoalApplyProcedure f xs) (apply f xs)]) gs)))
 
-(: unify0 (-> (Listof (Pairof Value Value)) (Immutable-HashTable Var Value) Value Value
-              (U False (Pairof (Immutable-HashTable Var Value) (Listof (Pairof Value Value))))))
+(define-type ==s (Immutable-HashTable Var Value))
+(: unify0 (-> (Listof (Pairof Value Value)) ==s Value Value
+              (U False (Pairof ==s (Listof (Pairof Value Value))))))
 (: %unify%history%mem? (-> (Listof (Pairof Value Value)) Value Value Boolean))
 (define (%unify%history%mem? set x y)
   (and (pair? set)
@@ -151,6 +152,12 @@
           [((? promise? x) y) (unify0 history c (force x) y)] ; BUG? (define _ (delay _))
           [(x (? promise? y)) (unify0 history c x (force y))] ; BUG? (define _ (delay _))
           [(x y) (and (equal? x y) (cons c history))]))))
+(: unify* (-> (Listof (Pairof Value Value)) (U False ==s)))
+(define (unify* xs)
+  (let ([r (unify0 '() (hash)
+                   (ann (map (ann car (-> (Pairof Value Value) Value)) xs) (Listof Value))
+                   (ann (map (ann cdr (-> (Pairof Value Value) Value)) xs) (Listof Value)))])
+    (and r (car r))))
 
 (: beta0 (-> (Immutable-HashTable Value (Promise Value)) (Immutable-HashTable Var Value) Value
              (Pairof (Immutable-HashTable Value (Promise Value)) Value)))
@@ -171,3 +178,7 @@
                      [(? promise? x) (beta0 betaed2 c (force x))]
                      [x (cons betaed2 x)])])
         x2)))
+(define-type BetaMemory (Immutable-HashTable Value Value))
+;(: beta (-> BetaMemory Value (Pairof BetaMemory Value)))
+
+;(: beta-goal-apply (-> GoalApplyProcedure
