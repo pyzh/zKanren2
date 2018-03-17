@@ -199,13 +199,38 @@
          (match (beta* mem c (cdr xs))
            [(cons d mem) (cons (cons a d) mem)])])))
 
-(: beta-goal-apply (-> BetaMemory ==s (Listof GoalApplyProcedure) (Pairof (Listof GoalApplyProcedure) BetaMemory)))
-(define (beta-goal-apply mem c xs)
+(: beta-goal-apply* (-> BetaMemory ==s (Listof GoalApplyProcedure) (Pairof (Listof GoalApplyProcedure) BetaMemory)))
+(define (beta-goal-apply* mem c xs)
   (match xs
     ['() (cons '() mem)]
     [(cons (GoalApplyProcedure f args) xs)
      (match (beta* mem c args)
        [(cons args mem)
-        (match (beta-goal-apply mem c xs)
+        (match (beta-goal-apply* mem c xs)
           [(cons xs mem)
            (cons (cons (GoalApplyProcedure f args) xs) mem)])])]))
+; (define-type =/=s (Listof (Listof (Pairof Var Value))))
+(: %beta-=/=s%1 (-> BetaMemory ==s (Listof (Pairof Var Value)) (Pairof (Listof (Pairof Value Value)) BetaMemory)))
+(define (%beta-=/=s%1 mem c xs)
+  (match xs
+    ['() (cons '() mem)]
+    [(cons (cons v x) xs)
+     (match (beta mem c v)
+       [(cons v mem)
+        (match (beta mem c x)
+          [(cons x mem)
+           (match (%beta-=/=s%1 mem c xs)
+             [(cons xs mem)
+              (cons (cons (cons v x) xs) mem)])])])]))
+(: beta-=/=s (-> BetaMemory ==s =/=s (Pairof (Listof (Listof (Pairof Value Value))) BetaMemory)))
+(define (beta-=/=s mem c xs)
+  (if (null? xs)
+      (cons '() mem)
+      (match (%beta-=/=s%1 mem c (car xs))
+        [(cons a mem)
+         (match (beta-=/=s mem c (cdr xs))
+           [(cons d mem)
+            (cons (cons a d) mem)])])))
+
+(: check-=/=s (-> =/=s (U False =/=s)))
+(define (check-=/=s xs) xs) ; BUG
