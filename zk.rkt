@@ -179,13 +179,33 @@
                      [(? promise? x) (beta0 betaed2 c (force x))]
                      [x (cons betaed2 x)])])
         x2)))
-(: beta (-> BetaMemory ==s Value (Pairof BetaMemory Value)))
+(: beta (-> BetaMemory ==s Value (Pairof Value BetaMemory)))
 (define (beta mem c x)
   (match (beta0 mem c x)
-    [(cons mem x) (cons (make-immutable-hash
-                         (map (ann (λ (x) (if (promise? (cdr x)) (cons (car x) (force (cdr x))) x))
-                                   (-> (Pairof Value Value) (Pairof Value Value)))
-                             (hash->list mem)))
-                        x)]))
+    [(cons mem x) (cons
+                   x
+                   (make-immutable-hash
+                    (map (ann (λ (x) (if (promise? (cdr x)) (cons (car x) (force (cdr x))) x))
+                              (-> (Pairof Value Value) (Pairof Value Value)))
+                         (hash->list mem))))]))
+(: beta* (-> BetaMemory ==s (Listof Value) (Pairof (Listof Value) BetaMemory)))
+; (define beta* beta) 无TypedRacket时
+; 为了TypeRacket
+(define (beta* mem c xs)
+  (if (null? xs)
+      (cons '() mem)
+      (match (beta mem c (car xs))
+        [(cons a mem)
+         (match (beta* mem c (cdr xs))
+           [(cons d mem) (cons (cons a d) mem)])])))
 
-;(: beta-goal-apply (-> GoalApplyProcedure
+(: beta-goal-apply (-> BetaMemory ==s (Listof GoalApplyProcedure) (Pairof (Listof GoalApplyProcedure) BetaMemory)))
+(define (beta-goal-apply mem c xs)
+  (match xs
+    ['() (cons '() mem)]
+    [(cons (GoalApplyProcedure f args) xs)
+     (match (beta* mem c args)
+       [(cons args mem)
+        (match (beta-goal-apply mem c xs)
+          [(cons xs mem)
+           (cons (cons (GoalApplyProcedure f args) xs) mem)])])]))
