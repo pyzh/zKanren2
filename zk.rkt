@@ -160,34 +160,25 @@
     (and r (car r))))
 
 (define-type BetaMemory (Immutable-HashTable Value Value))
-(: beta0 (-> BetaMemory ==s Value
-             (Pairof BetaMemory Value)))
-(define (beta0 betaed c x)
+(: beta (-> BetaMemory ==s Value
+             (Pairof Value BetaMemory)))
+(define (beta betaed c x)
   (if (hash-has-key? betaed x)
-      (cons betaed (hash-ref betaed x))
-      (letrec ([betaed2 : BetaMemory
-                        (hash-set betaed x (delay (cdr x2)))]
-               [x2 : (Pairof BetaMemory Value)
+      (cons (hash-ref betaed x) betaed)
+      (match (letrec ([betaed2 : BetaMemory
+                        (hash-set betaed x (delay (car x2)))]
+               [x2 : (Pairof Value BetaMemory)
                    (match x
                      [(cons a d)
-                      (match (beta0 betaed2 c a)
-                        [(cons betaed a)
-                         (match (beta0 betaed c d)
-                           [(cons betaed d)
-                            (cons betaed (cons a d))])])]
-                     [(and x (Var _)) (cons betaed2 (hash-ref c x (λ () x)))]
-                     [(? promise? x) (beta0 betaed2 c (force x))]
-                     [x (cons betaed2 x)])])
-        x2)))
-(: beta (-> BetaMemory ==s Value (Pairof Value BetaMemory)))
-(define (beta mem c x)
-  (match (beta0 mem c x)
-    [(cons mem x) (cons
-                   x
-                   (make-immutable-hash
-                    (map (ann (λ (x) (if (promise? (cdr x)) (cons (car x) (force (cdr x))) x))
-                              (-> (Pairof Value Value) (Pairof Value Value)))
-                         (hash->list mem))))]))
+                      (match (beta betaed2 c a)
+                        [(cons a betaed)
+                         (match (beta betaed c d)
+                           [(cons d betaed)
+                            (cons (cons a d) betaed)])])]
+                     [(and x (Var _)) (cons (hash-ref c x (λ () x)) betaed2)]
+                     [(? promise? x) (beta betaed2 c (force x))]
+                     [x (cons x betaed2)])]) x2)
+        [(cons v m) (cons v (hash-set m x v))])))
 (: beta* (-> BetaMemory ==s (Listof Value) (Pairof (Listof Value) BetaMemory)))
 ; (define beta* beta) 无TypedRacket时
 ; 为了TypeRacket
